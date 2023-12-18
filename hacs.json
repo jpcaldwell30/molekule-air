@@ -1,0 +1,6 @@
+{
+  "name": "Molekule-Air",
+  "render_readme": true,
+  "iot_class": "cloud_polling",
+  "homeassistant": "2023.10.0"
+}
