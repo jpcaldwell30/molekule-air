@@ -12,9 +12,9 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
-from .const import MOLEKULE_AUTH_RESPONSE, MOLEKULE_DATA_COORDINATOR, MOLEKULE_DOMAIN, MOLEKULE_NAME
-from .helpers import Helpers, MolekuleException
-from .manager import MolekuleManager
+from const import MOLEKULE_AUTH_RESPONSE, MOLEKULE_DATA_COORDINATOR, MOLEKULE_DOMAIN, MOLEKULE_NAME
+from helpers import Helpers, MolekuleException
+from manager import MolekuleManager
 
 _LOGGER = logging.getLogger(__name__)
 SUPPORTED_PLATFORMS = [Platform.FAN, Platform.SENSOR]
@@ -55,7 +55,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             # 400:The user is not valid.
             if try_login_once and err.result_code in ("900", "400"):
                 try_login_once = False
-
                 try:
                     new_auth_response = await Helpers.async_login(
                         hass, user_input[CONF_USERNAME], user_input[CONF_PASSWORD]

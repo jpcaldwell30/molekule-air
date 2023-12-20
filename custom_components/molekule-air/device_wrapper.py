@@ -1,12 +1,13 @@
 """The Molekule Air Purifier component."""
 
 from __future__ import annotations
-
 import dataclasses
-
 import aiohttp
+import logging
 
-from .const import (
+logger = logging.getLogger(__name__)
+
+from const import (
     ATTR_AIRFLOW,
     ATTR_MODE,
     #ATTR_POWER,
@@ -14,11 +15,11 @@ from .const import (
     MODE_SMART,
     MODE_MANUAL,
     OFF_VALUE,
-    ON_VALUE,
+    #ON_VALUE,
     #EPRESET_MODE_AUTO,
     #PRESET_MODE_AUTO_PLASMA_OFF,
-    PRESET_MODE_MANUAL,
-    PRESET_MODE_SMART,
+    #PRESET_MODE_MANUAL,
+    #PRESET_MODE_SMART,
     #PRESET_MODE_MANUAL_PLASMA_OFF,
     #PRESET_MODE_SLEEP,
     PRESET_MODES,
@@ -38,7 +39,6 @@ class MyMolekuleDeviceStub:
     model: str
     fw_version: str
 
-
 class MolekuleDeviceWrapper:
     """Representation of the Molekule device data."""
 
@@ -48,7 +48,7 @@ class MolekuleDeviceWrapper:
         self,
         client: aiohttp.ClientSession,
         device_stub: MyMolekuleDeviceStub,
-        logger,
+        #logger,
     ) -> None:
         """Initialize the wrapper."""
 
@@ -98,7 +98,6 @@ class MolekuleDeviceWrapper:
 
         # if self._state.get(ATTR_AIRFLOW) == AIRFLOW_SLEEP:
         #     self._sleep = True
-
         self._logger.debug(
             #"%s: updated on=%s, auto=%s, manual=%s, sleep=%s, airflow=%s, plasma=%s",
             "%s: updated on=%s, smart=%s, manual=%s, airflow=%s",

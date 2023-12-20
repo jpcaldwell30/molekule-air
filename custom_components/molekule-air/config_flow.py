@@ -26,7 +26,6 @@ AUTH_DATA_SCHEMA = vol.Schema(
     }
 )
 
-
 class MolekuleFlowHandler(config_entries.ConfigFlow, domain=MOLEKULE_DOMAIN):
     """Config flow handler."""
 

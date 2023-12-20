@@ -22,17 +22,17 @@ from homeassistant.util.percentage import (
 
 from .const import (
     ATTR_AIRFLOW,
-    ATTR_FILTER_REPLACEMENT_DATE,
-    ATTR_LOCATION,
+    #ATTR_FILTER_REPLACEMENT_DATE,
+    #ATTR_LOCATION,
     ATTR_POWER,
     ORDERED_NAMED_FAN_SPEEDS,
     PRESET_MODE_SMART,
-    PRESET_MODE_AUTO_PLASMA_OFF,
+    #PRESET_MODE_AUTO_PLASMA_OFF,
     PRESET_MODE_MANUAL,
-    PRESET_MODE_MANUAL_PLASMA_OFF,
-    PRESET_MODE_SLEEP,
+    #PRESET_MODE_MANUAL_PLASMA_OFF,
+    #PRESET_MODE_SLEEP,
     PRESET_MODES,
-    SERVICES,
+    #SERVICES,
     MOLEKULE_DATA_COORDINATOR,
     MOLEKULE_DATA_KEY,
     MOLEKULE_DOMAIN,
@@ -87,13 +87,13 @@ async def async_setup_entry(
             # Update device states in HA
             await asyncio.wait(state_update_tasks)
 
-    for service in SERVICES:
-        hass.services.async_register(
-            MOLEKULE_DOMAIN,
-            service,
-            async_service_handler,
-            schema=vol.Schema({ATTR_ENTITY_ID: cv.entity_ids}),
-        )
+    # for service in SERVICES:
+    #     hass.services.async_register(
+    #         MOLEKULE_DOMAIN,
+    #         service,
+    #         async_service_handler,
+    #         schema=vol.Schema({ATTR_ENTITY_ID: cv.entity_ids}),
+    #     )
 
     _LOGGER.info("Added %s Molekule fans", len(entities))
 

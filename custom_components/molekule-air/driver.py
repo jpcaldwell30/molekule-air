@@ -1,12 +1,9 @@
 """The MolekuleDriver component."""
 
 from __future__ import annotations
-
 import logging
-
 import aiohttp
 import json
-
 _LOGGER = logging.getLogger(__name__)
 
 class MolekuleDriver:
@@ -144,7 +141,7 @@ class MolekuleDriver:
             #self.STATE_URL.format(serial=self.serial)
             self.STATE_URL.format()
         )
-        json = await response.json()
+        json_response = await response.json()
 
         # pylint: disable=pointless-string-statement
         """
@@ -162,7 +159,7 @@ class MolekuleDriver:
         """
 
         try:
-            content = json['content']
+            content = json_response['content']
             for index, value in enumerate(content):
                 serial_number = value['serialNumber']
                 if serial_number == self.serial:
@@ -181,7 +178,7 @@ class MolekuleDriver:
         response = await self._client.get(
             self.STATE_URL.format()
         )
-        json = await response.json()
+        json_response = await response.json()
 
         # pylint: disable=pointless-string-statement
         """
@@ -204,11 +201,11 @@ class MolekuleDriver:
         output = {}
 
         try:
-            _LOGGER.debug(json)
-            payload = json.json()['content']
+            _LOGGER.debug(json_response)
+            payload = json_response.json()['content']
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.error(
-                "Error parsing response json, received %s", json, exc_info=err
+                "Error parsing response json, received %s", json_response, exc_info=err
             )
             return output
             # Return empty object so that callers don't crash (#37)
@@ -236,5 +233,4 @@ class MolekuleDriver:
                 "aqi": aqi,
                 "silent": silent
             }
-
         return output

@@ -1,11 +1,4 @@
 from dataclasses import dataclass
-import boto3
-
-import boto3
-from botocore import UNSIGNED
-from botocore.client import Config
-
-
 from pycognito import Cognito as AWS
 
 COGNITO_APP_CLIENT_ID = "1ec4fa3oriciupg94ugoi84kkk"
@@ -35,7 +28,6 @@ def login(username: str, password: str, **kwargs):
     MolekuleAuthResponse.user = user
     MolekuleAuthResponse.access_token = user.access_token
     return MolekuleAuthResponse
-
 
 def refresh():
     """Refresh credentials"""

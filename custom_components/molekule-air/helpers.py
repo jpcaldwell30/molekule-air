@@ -11,8 +11,8 @@ import auth
 
 from homeassistant.core import HomeAssistant
 
-from .const import MOLEKULE_DOMAIN
-from .device_wrapper import MyMolekuleDeviceStub
+from const import MOLEKULE_DOMAIN
+from device_wrapper import MyMolekuleDeviceStub
 import MolekuleAccount
 
 _LOGGER = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ class Helpers:
 
             access_token = response.access_token
             account = MolekuleAccount(access_token, username, password)
-
+            
             # The next 2 operations can raise generic or botocore exceptions
             try:
                 account.check_access_token()
@@ -95,7 +95,7 @@ class Helpers:
             try:
                 account.check_access_token()
             except Exception as err:  # pylint: disable=broad-except
-                raise MolekuleException.from_molrkule_exception(err) from err
+                raise MolekuleException.from_molekule_exception(err) from err
 
             _LOGGER.debug("Re-authentication successful")
             return reponse

@@ -75,6 +75,12 @@ PRESET_MODES: Final = [
     PRESET_MODE_MANUAL,
 ]
 
+# SERVICES: Final = [
+#     SERVICE_PLASMAWAVE_ON,
+#     SERVICE_PLASMAWAVE_OFF,
+#     SERVICE_PLASMAWAVE_TOGGLE,
+# ]
+
 @unique
 class NumericPresetModes(str, Enum):
     """Alternate numeric preset modes.
