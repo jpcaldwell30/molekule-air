@@ -2,7 +2,7 @@
   "domain": "Molekule",
   "name": "Molekule Air Purifier",
   "documentation": "https://github.com/iprak/winix",
-  "requirements": ["pycognito=2021.3.1"],
+  "requirements": ["pycognito==2021.3.1"],
   "dependencies": [],
   "codeowners": ["@jpcaldwell30"],
   "issue_tracker": "https://github.com/iprak/winix/issues",
