@@ -6,7 +6,7 @@ from datetime import timedelta
 import logging
 
 #from winix import auth
-import auth
+from . import auth
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import aiohttp_client
