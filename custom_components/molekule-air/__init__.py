@@ -5,16 +5,16 @@ from __future__ import annotations
 import logging
 from typing import Final
 
-import auth
+from . import auth
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
-from const import MOLEKULE_AUTH_RESPONSE, MOLEKULE_DATA_COORDINATOR, MOLEKULE_DOMAIN, MOLEKULE_NAME
-from helpers import Helpers, MolekuleException
-from manager import MolekuleManager
+from .const import MOLEKULE_AUTH_RESPONSE, MOLEKULE_DATA_COORDINATOR, MOLEKULE_DOMAIN, MOLEKULE_NAME
+from .helpers import Helpers, MolekuleException
+from .manager import MolekuleManager
 
 _LOGGER = logging.getLogger(__name__)
 SUPPORTED_PLATFORMS = [Platform.FAN, Platform.SENSOR]

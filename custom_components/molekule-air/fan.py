@@ -7,8 +7,6 @@ from collections.abc import Mapping
 import logging
 from typing import Any, Optional, Union
 
-import voluptuous as vol
-
 from homeassistant.components.fan import DOMAIN, FanEntity, FanEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID

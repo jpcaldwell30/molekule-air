@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-import auth
+from . import auth
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME

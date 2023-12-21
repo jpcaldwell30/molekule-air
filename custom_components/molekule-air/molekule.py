@@ -1,4 +1,4 @@
-from molekule_aws_auth import Auth_AWS
+from .molekule_aws_auth import Auth_AWS
 import requests
 from aiohttp import ClientSession, ClientResponse
 from datetime import date

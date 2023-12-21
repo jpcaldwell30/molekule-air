@@ -1,7 +1,7 @@
 import dataclasses
 from binascii import crc32
 import requests
-from molekule import Molekule
+from .molekule import Molekule
 import aiohttp
 import logging
 import json

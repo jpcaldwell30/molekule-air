@@ -7,7 +7,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from const import (
+from .const import (
     ATTR_AIRFLOW,
     ATTR_MODE,
     #ATTR_POWER,
@@ -26,8 +26,7 @@ from const import (
     NumericPresetModes,
 )
 
-#from .driver import MolekuleDriver
-from driver import MolekuleDriver
+from .driver import MolekuleDriver
 
 @dataclasses.dataclass
 class MyMolekuleDeviceStub:

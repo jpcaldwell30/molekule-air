@@ -1,4 +1,4 @@
-"""Constants for the Molekule C545 Air Purifier component."""
+"""Constants for the Molekule Air Purifier component."""
 
 from enum import Enum, unique
 from typing import Final

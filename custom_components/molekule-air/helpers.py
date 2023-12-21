@@ -1,19 +1,19 @@
 """The Molekule Air Purifier component."""
 
-from __future__ import annotations
+#from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
 
 import requests
-import auth
+from . import auth
 #from winix import WinixAccount, auth
 
 from homeassistant.core import HomeAssistant
 
-from const import MOLEKULE_DOMAIN
-from device_wrapper import MyMolekuleDeviceStub
-import MolekuleAccount
+from .const import MOLEKULE_DOMAIN
+from .device_wrapper import MyMolekuleDeviceStub
+from . import MolekuleAccount
 
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_POST_TIMEOUT = 5

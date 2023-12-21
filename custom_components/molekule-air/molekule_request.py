@@ -1,5 +1,5 @@
 from aiohttp import ClientSession, ClientResponse
-from molekule_aws_auth import Auth_AWS
+from .molekule_aws_auth import Auth_AWS
 from datetime import date
 
 class Auth:
