@@ -17,7 +17,6 @@ from .const import MOLEKULE_AUTH_RESPONSE, MOLEKULE_DOMAIN, MOLEKULE_NAME
 from .helpers import Helpers, MolekuleException
 
 _LOGGER = logging.getLogger(__name__)
-_LOGGER.debug("hello from molekule config flow")
 REAUTH_SCHEMA = vol.Schema({vol.Required(CONF_PASSWORD): str})
 
 AUTH_DATA_SCHEMA = vol.Schema(

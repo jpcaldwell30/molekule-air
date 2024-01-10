@@ -3,8 +3,8 @@
     "step": {
       "user": {
         "data": {
-          "username": "[%key:common::config_flow::data::username%]",
-          "password": "[%key:common::config_flow::data::password%]"
+          "username": "username",
+          "password": "password"
         },
         "description": "Set up Molekule integration. Login with your mobile app credentials.",
         "title": "Molekule Air Purifier"
