@@ -21,6 +21,7 @@ SUPPORTED_PLATFORMS = [Platform.FAN, Platform.SENSOR]
 DEFAULT_SCAN_INTERVAL: Final = 30
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+    _LOGGER.debug("running async_setup_enry")
     """Set up the Molekule component."""
 
     hass.data.setdefault(MOLEKULE_DOMAIN, {})
@@ -29,7 +30,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     auth_response = (
         auth_response_data
         if isinstance(auth_response_data, auth.MolekuleAuthResponse)
-        else _LOGGER.debug("auth_response_data is not a MolekuleAuthResponse")
+        else auth.MolekuleAuthResponse(**auth_response_data)
     )
 
     if not auth_response:
@@ -53,7 +54,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             # 900:MULTI LOGIN: Same credentials were used to login elwsewhere. We need to
             # login again and get new tokens.
             # 400:The user is not valid.
-            if try_login_once and err.result_code in ("900", "400"):
+            if try_login_once and err.result_code:
+            #if try_login_once and err.result_code in ("900", "400"):
                 try_login_once = False
                 try:
                     new_auth_response = await Helpers.async_login(
