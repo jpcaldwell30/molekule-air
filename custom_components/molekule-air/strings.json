@@ -7,7 +7,7 @@
           "password": "password"
         },
         "description_placeholders": "Set up Molekule integration. Login with your mobile app credentials.",
-        "title": "Molekule test Air Purifier",
+        "title": "Molekule Air Purifier",
         "data_description": {
           "username": "username description",
           "password": "password description"
@@ -15,9 +15,9 @@
       }
     },
     "error": {
-      "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
-      "invalid_user": "[%key:common::config_flow::error::invalid_user%]",
-      "unknown": "[%key:common::config_flow::error::unknown%]"
+      "invalid_auth": "Invalid auth",
+      "invalid_user": "Invallid user",
+      "unknown": "unknown"
     }
   }
 }
