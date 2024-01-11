@@ -6,8 +6,12 @@
           "username": "username",
           "password": "password"
         },
-        "description": "Set up Molekule integration. Login with your mobile app credentials.",
-        "title": "Molekule Air Purifier"
+        "description_placeholders": "Set up Molekule integration. Login with your mobile app credentials.",
+        "title": "Molekule test Air Purifier",
+        "data_description": {
+          "username": "username description",
+          "password": "password description"
+        }
       }
     },
     "error": {
