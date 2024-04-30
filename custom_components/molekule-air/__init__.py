@@ -1,115 +1,85 @@
-"""The Molekule Air Purifier component."""
-
+"""The Molekule Air integration."""
 from __future__ import annotations
 
+import asyncio
+from datetime import timedelta
 import logging
-from typing import Final
-
-from . import auth
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.entity_registry import async_get as er
+from homeassistant.helpers.device_registry import async_get as dr
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import MOLEKULE_AUTH_RESPONSE, MOLEKULE_DATA_COORDINATOR, MOLEKULE_DOMAIN, MOLEKULE_NAME
-from .helpers import Helpers, MolekuleException
-from .manager import MolekuleManager
+from .api import MolekuleApiClient
+from .const import CONF_PASSWORD, CONF_USERNAME, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-SUPPORTED_PLATFORMS = [Platform.FAN, Platform.SENSOR]
-DEFAULT_SCAN_INTERVAL: Final = 30
+SUPPORTED_PLATFORMS = [Platform.SENSOR, Platform.FAN]
+DEFAULT_SCAN_INTERVAL = timedelta(seconds=60)
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    _LOGGER.debug("running async_setup_enry")
-    """Set up the Molekule component."""
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up this integration using UI."""
+    if hass.data.get(DOMAIN) is None:
+        hass.data.setdefault(DOMAIN, {})
+    username = entry.data.get(CONF_USERNAME)
+    password = entry.data.get(CONF_PASSWORD)
 
-    hass.data.setdefault(MOLEKULE_DOMAIN, {})
-    user_input = entry.data
-    auth_response_data = user_input.get(MOLEKULE_AUTH_RESPONSE)
-    auth_response = (
-        auth_response_data
-        if isinstance(auth_response_data, auth.MolekuleAuthResponse)
-        else auth.MolekuleAuthResponse(**auth_response_data)
-    )
+    session = async_get_clientsession(hass)
+    client = MolekuleApiClient(hass, username, password, session)
+    await client.async_verify_auth()
+    coordinator = MolekuleDataUpdateCoordinator(hass, client=client)
+    await coordinator.async_refresh()
 
-    if not auth_response:
-        Helpers.send_notification(
-            hass,
-            "async_setup_entry",
-            MOLEKULE_NAME,
-            "No authentication data found. Please reconfigure the integration.",
-        )
-        return False
+    if not coordinator.last_update_success:
+        raise ConfigEntryNotReady
 
-    manager = MolekuleManager(hass, auth_response, DEFAULT_SCAN_INTERVAL)
-    try_login_once = True
-    try_prepare_devices_wrappers = True
+    hass.data[DOMAIN][entry.entry_id] = coordinator
 
-    while try_prepare_devices_wrappers:
-        try:
-            await manager.async_prepare_devices_wrappers()
-            break
-        except MolekuleException as err:
-            # 900:MULTI LOGIN: Same credentials were used to login elwsewhere. We need to
-            # login again and get new tokens.
-            # 400:The user is not valid.
-            if try_login_once and err.result_code:
-            #if try_login_once and err.result_code in ("900", "400"):
-                try_login_once = False
-                try:
-                    new_auth_response = await Helpers.async_login(
-                        hass, user_input[CONF_USERNAME], user_input[CONF_PASSWORD]
-                    )
-
-                    # Copy over new values
-                    _LOGGER.debug(
-                        "access_token %s",
-                        "changed"
-                        if auth_response.access_token != new_auth_response.access_token
-                        else "unchanged",
-                    )
-                    _LOGGER.debug(
-                        "refresh_token %s",
-                        "changed"
-                        if auth_response.access_token != new_auth_response.access_token
-                        else "unchanged",
-                    )
-
-                    auth_response.access_token = new_auth_response.access_token
-
-                    # Update tokens into entry.data
-                    hass.config_entries.async_update_entry(
-                        entry,
-                        data={**user_input, MOLEKULE_AUTH_RESPONSE: auth_response},
-                    )
-
-                except MolekuleException as login_err:
-                    if login_err.result_code == "UserNotFoundException":
-                        raise ConfigEntryAuthFailed(
-                            "Molekule reported multi login"
-                        ) from login_err
-
-                    _LOGGER.exception(
-                        "Unable to log in. Device access previously failed with `%s`",
-                        str(err)
-                    )
-                    raise ConfigEntryNotReady("Unable to authenticate.") from login_err
-            else:
-                try_prepare_devices_wrappers = False
-
-                # ConfigEntryNotReady will cause async_setup_entry to be invoked in background.
-                raise ConfigEntryNotReady("Unable to access device data.") from err
-
-    await manager.async_config_entry_first_refresh()
-
-    hass.data[MOLEKULE_DOMAIN][entry.entry_id] = {MOLEKULE_DATA_COORDINATOR: manager}
     await hass.config_entries.async_forward_entry_setups(entry, SUPPORTED_PLATFORMS)
 
+    entry.add_update_listener(async_reload_entry)
+    entry.async_on_unload(entry.add_update_listener(update_listener))
     return True
 
+async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Handle options update."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    # pylint: disable=unused-argument
-    """Unload a config entry."""
-    hass.data.pop(MOLEKULE_DOMAIN)
+    """Handle removal of an entry."""
+    if unloaded := await hass.config_entries.async_unload_platforms(entry, SUPPORTED_PLATFORMS):
+        hass.data[DOMAIN].pop(entry.entry_id)
+    return unloaded
+
+
+class MolekuleDataUpdateCoordinator(DataUpdateCoordinator):
+    """Class to manage fetching data from the API."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        client: MolekuleApiClient,
+    ) -> None:
+        """Initialize."""
+        self.api = client
+        self.platforms = []
+        super().__init__(
+            hass, _LOGGER, name=DOMAIN, update_interval=DEFAULT_SCAN_INTERVAL
+        )
+
+    async def _async_update_data(self):
+        """Update data via library."""
+        try:
+            return await self.api.async_get_data()
+        except Exception as exception:
+            raise UpdateFailed() from exception
+
+
+async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload config entry."""
+    await async_unload_entry(hass, entry)
+    await async_setup_entry(hass, entry)

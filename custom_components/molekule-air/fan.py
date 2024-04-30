@@ -1,241 +1,170 @@
-"""Molekule Air Purifier Device."""
+"""Support for Rabbit Air fan entity."""
 
 from __future__ import annotations
 
-import asyncio
-from collections.abc import Mapping
-import logging
-from typing import Any, Optional, Union
+import ast
+from typing import Any
 
-from homeassistant.components.fan import DOMAIN, FanEntity, FanEntityFeature
+from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_ENTITY_ID
-from homeassistant.core import HomeAssistant
-import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+import logging
 from homeassistant.util.percentage import (
     ordered_list_item_to_percentage,
     percentage_to_ordered_list_item,
 )
 
-from .const import (
-    ATTR_AIRFLOW,
-    #ATTR_FILTER_REPLACEMENT_DATE,
-    #ATTR_LOCATION,
-    ATTR_POWER,
-    ORDERED_NAMED_FAN_SPEEDS,
-    PRESET_MODE_SMART,
-    #PRESET_MODE_AUTO_PLASMA_OFF,
-    PRESET_MODE_MANUAL,
-    #PRESET_MODE_MANUAL_PLASMA_OFF,
-    #PRESET_MODE_SLEEP,
-    PRESET_MODES,
-    #SERVICES,
-    MOLEKULE_DATA_COORDINATOR,
-    MOLEKULE_DATA_KEY,
-    MOLEKULE_DOMAIN,
-)
-from .device_wrapper import MolekuleDeviceWrapper
-from .manager import MolekuleEntity, MolekuleManager
+from .const import DOMAIN
+from .entity import MolekuleBaseEntity
+from .properties import Speed, Mode
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER: logging.Logger = logging.getLogger(__package__)
 
+SPEED_LIST = [
+    Speed.Silent.value,
+    Speed.Low.value,
+    Speed.Medium.value,
+    Speed.High.value,
+    Speed.Turbo.value,
+    Speed.SuperTurbo.value
+]
+
+PRESET_MODE_AUTO = "auto"
+PRESET_MODE_MANUAL = "manual"
+
+PRESET_MODES = {
+    PRESET_MODE_AUTO: Mode.auto.name,
+    PRESET_MODE_MANUAL: Mode.manual.name,
+}
 
 async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-):
-    """Set up the Molekule air purifiers."""
-    data = hass.data[MOLEKULE_DOMAIN][entry.entry_id]
-    manager: MolekuleManager = data[MOLEKULE_DATA_COORDINATOR]
-    entities = [
-        MolekulePurifier(wrapper, manager) for wrapper in manager.get_device_wrappers()
-    ]
-    data[MOLEKULE_DATA_KEY] = entities
-    async_add_entities(entities)
+    hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+) -> None:
+    """Set up a config entry."""
+    coordinator = hass.data[DOMAIN][config_entry.entry_id]
+    device_entities: list[MolekuleFanEntity] = []
+    device_data = coordinator.data["content"]
+    for device in device_data:
+        #_LOGGER.debug("device in fan setup %s", device)
+        device_entities.append(
+            MolekuleFanEntity(
+                device,
+                coordinator,
+                config_entry
+            )
+        )
+    async_add_entities(device_entities)
 
-    async def async_service_handler(service_call):
-        """Service handler."""
-        method = "async_" + service_call.service
-        _LOGGER.debug("Service '%s' invoked", service_call.service)
+class MolekuleFanEntity(MolekuleBaseEntity, FanEntity):
+    """Fan control functions of the Rabbit Air air purifier."""
 
-        # The defined services do not accept any additional parameters
-        params = {}
-
-        entity_ids = service_call.data.get(ATTR_ENTITY_ID)
-        if entity_ids:
-            devices = [
-                entity
-                for entity in data[MOLEKULE_DATA_KEY]
-                if entity.entity_id in entity_ids
-            ]
-        else:
-            devices = data[MOLEKULE_DATA_KEY]
-
-        state_update_tasks = []
-        for device in devices:
-            if not hasattr(device, method):
-                continue
-
-            await getattr(device, method)(**params)
-            state_update_tasks.append(asyncio.create_task(device.async_update_ha_state(True)))
-
-        if state_update_tasks:
-            # Update device states in HA
-            await asyncio.wait(state_update_tasks)
-
-    # for service in SERVICES:
-    #     hass.services.async_register(
-    #         MOLEKULE_DOMAIN,
-    #         service,
-    #         async_service_handler,
-    #         schema=vol.Schema({ATTR_ENTITY_ID: cv.entity_ids}),
-    #     )
-
-    _LOGGER.info("Added %s Molekule fans", len(entities))
-
-
-class MolekulePurifier(MolekuleEntity, FanEntity):
-    """Representation of a Molekule Purifier entity."""
-
-    # https://developers.home-assistant.io/docs/core/entity/fan/
     _attr_supported_features = FanEntityFeature.PRESET_MODE | FanEntityFeature.SET_SPEED
 
-    def __init__(self, wrapper: MolekuleDeviceWrapper, coordinator: MolekuleManager) -> None:
+    def __init__(
+        self,
+        device: dict[str, str],
+        coordinator: CoordinatorEntity,
+        entry: ConfigEntry
+    ) -> None:
         """Initialize the entity."""
-        super().__init__(wrapper, coordinator)
-        self._attr_unique_id = f"{DOMAIN}.{MOLEKULE_DOMAIN}_{self._mac}"
+        super().__init__(device, coordinator, entry)
+        self._attr_preset_modes = list(PRESET_MODES)
+        # if self._is_model(Model.MinusA2):
+        #     self._attr_preset_modes = list(PRESET_MODES)
+        # elif self._is_model(Model.A3):
+        #     # A3 does not support Pollen mode
+        #     self._attr_preset_modes = [
+        #         k for k in PRESET_MODES if k != PRESET_MODE_POLLEN
+        #     ]
+        self._attr_speed_count = len(SPEED_LIST)
 
-    @property
-    def name(self) -> Union[str, None]:
-        """Entity Name.
+        self._get_state_from_coordinator_data()
 
-        Returning None, since this is the primary entity.
-        """
-        return None
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._get_state_from_coordinator_data()
+        super()._handle_coordinator_update()
 
-    @property
-    def extra_state_attributes(self) -> Union[Mapping[str, Any], None]:
-        """Return the state attributes."""
-        attributes = {}
-        state = self._wrapper.get_state()
+    def _get_state_from_coordinator_data(self) -> None:
+        """Populate the entity fields with values from the coordinator data."""
+        if "content" in self.coordinator.data:
+            for data in self.coordinator.data["content"]:
+                if data["serialNumber"] == self.serial_nr:
+                    if data.get("mode") == "off" or data.get("mode") is None:
+                        self._attr_percentage = 0
+                    elif data.get("fanspeed") is None:
+                        self._attr_percentage = None
+                    else:
+                        self._attr_percentage = ordered_list_item_to_percentage(
+                            SPEED_LIST, ast.literal_eval(data.get("fanspeed"))
+                        )
+                    # Preset mode
+                    if data.get("mode") == "off" or data.get("mode") is None:
+                        self._attr_preset_mode = None
+                    else:
+                        # Get key by value in dictionary
+                        if "mode" in data and data["mode"] in PRESET_MODES.values():
+                            self._attr_preset_mode = next(
+                                k for k, v in PRESET_MODES.items() if v == data.get("mode")
+                            )
 
-        if state is not None:
-            for key, value in state.items():
-                # The power attribute is the entity state, so skip it
-                if key != ATTR_POWER:
-                    attributes[key] = value
-
-        return attributes
-
-    @property
-    def is_on(self) -> bool:
-        """Return true if switch is on."""
-        return self._wrapper.is_on
-
-    @property
-    def percentage(self) -> Union[int, None]:
-        """Return the current speed percentage."""
-        state = self._wrapper.get_state()
-        if state is None:
-            return None
-        if self._wrapper.is_smart:
-            return None
-        if state.get(ATTR_AIRFLOW) is None:
-            return None
-
-        return ordered_list_item_to_percentage(
-            ORDERED_NAMED_FAN_SPEEDS, state.get(ATTR_AIRFLOW)
-        )
-
-    @property
-    def preset_mode(self) -> Union[str, None]:
-        """Return the current preset mode, e.g., auto, smart, interval, favorite."""
-        state = self._wrapper.get_state()
-        if state is None:
-            return None
-        if self._wrapper.is_smart:
-            return (
-                PRESET_MODE_SMART
-            )
-        if self._wrapper.is_manual:
-            return (
-                PRESET_MODE_MANUAL
-            )
-
-        return None
-
-    @property
-    def preset_modes(self) -> Union[list[str], None]:
-        """Return a list of available preset modes."""
-        return PRESET_MODES
-
-    @property
-    def speed_list(self) -> list:
-        """Get the list of available speeds."""
-        return ORDERED_NAMED_FAN_SPEEDS
-
-    @property
-    def speed_count(self) -> int:
-        """Return the number of speeds the fan supports."""
-        return len(ORDERED_NAMED_FAN_SPEEDS)
+    async def async_set_preset_mode(self, preset_mode: str) -> None: #not implemented yet
+        """Set new preset mode."""
+        data = {"power":"on",
+                "mode":preset_mode
+                }
+        _LOGGER.debug("data from preset mode is: %s", data)
+        await self._set_state(data)
+        self._attr_preset_mode = preset_mode
+        self.async_write_ha_state()
 
     async def async_set_percentage(self, percentage: int) -> None:
-        """Set the speed percentage of the fan."""
-        if percentage == 0:
-            await self.async_turn_off()
+        """Set the speed of the fan, as a percentage."""
+        if percentage > 0:
+            value = percentage_to_ordered_list_item(SPEED_LIST, percentage)
+            data = {"power":"on",
+                    "speed":value
+                    }
+            await self._set_state(data)
+            self._attr_percentage = percentage
         else:
-            await self._wrapper.async_set_speed(
-                percentage_to_ordered_list_item(ORDERED_NAMED_FAN_SPEEDS, percentage)
-            )
-
+            data = {"power":"off"}
+            await self._set_state(data)
+            self._attr_percentage = 0
+            self._attr_preset_mode = None
         self.async_write_ha_state()
 
     async def async_turn_on(
         self,
-        percentage: Optional[int] = None,
-        preset_mode: Optional[str] = None,
+        percentage: int | None = None,
+        preset_mode: str | None = None,
         **kwargs: Any,
     ) -> None:
-        # pylint: disable=unused-argument
-        """Turn on the purifier."""
-
-        if percentage:
-            await self.async_set_percentage(percentage)
-        if preset_mode:
-            await self._wrapper.async_set_preset_mode(preset_mode)
-        else:
-            await self._wrapper.async_turn_on()
-
+        """Turn on the fan."""
+        data = {"power":"on"}
+        mode_value: Mode | None = None
+        if preset_mode is not None:
+            mode_value = PRESET_MODES[preset_mode]
+            data["mode"] = mode_value
+        speed_value: Speed | None = None
+        if percentage is not None:
+            speed_value = percentage_to_ordered_list_item(SPEED_LIST, percentage)
+            data["speed"] = speed_value
+        _LOGGER.debug("aync_turn on data: %s", data)
+        await self._set_state(data)
+        if percentage is not None:
+            self._attr_percentage = percentage
+        if preset_mode is not None:
+            self._attr_preset_mode = preset_mode
         self.async_write_ha_state()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn off the purifier."""
-        await self._wrapper.async_turn_off()
-        self.async_write_ha_state()
-
-    # async def async_plasmawave_on(self) -> None:
-    #     """Turn on plasma wave."""
-    #     await self._wrapper.async_plasmawave_on()
-    #     self.async_write_ha_state()
-
-    # async def async_plasmawave_off(self) -> None:
-    #     """Turn off plasma wave."""
-    #     await self._wrapper.async_plasmawave_off()
-    #     self.async_write_ha_state()
-
-    # async def async_plasmawave_toggle(self) -> None:
-    #     """Toggle plasma wave."""
-
-    #     if self._wrapper.is_plasma_on:
-    #         await self._wrapper.async_plasmawave_off()
-    #     else:
-    #         await self._wrapper.async_plasmawave_on()
-
-    #     self.async_write_ha_state()
-
-    async def async_set_preset_mode(self, preset_mode: str) -> None:
-        """Set new preset mode."""
-        await self._wrapper.async_set_preset_mode(preset_mode)
+        """Turn the fan off."""
+        data = {"power":"off"}
+        await self._set_state(data)
+        self._attr_percentage = 0
+        self._attr_preset_mode = None
         self.async_write_ha_state()

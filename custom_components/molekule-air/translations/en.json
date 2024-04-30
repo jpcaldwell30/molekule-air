@@ -1,23 +1,31 @@
 {
-  "config": {
-    "step": {
-      "user": {
-        "data": {
-          "username": "username",
-          "password": "password"
+    "config": {
+        "abort": {
+            "already_configured": "Device is already configured",
+            "no_devices_found": "No devices found on the network",
+            "single_instance_allowed": "Already configured. Only a single configuration possible."
         },
-        "description_placeholders": "Set up Molekule integration. Login with your mobile app credentials.",
-        "title": "Molekule Air Purifier",
-        "data_description": {
-          "username": "username description",
-          "password": "password description"
+        "error": {
+            "cannot_connect": "Failed to connect",
+            "invalid_auth": "Invalid authentication",
+            "unknown": "Unexpected error"
+        },
+        "step": {
+            "confirm": {
+                "description": "Do you want to start setup?"
+            },
+            "user": {
+                "data": {
+                    "password": "Password",
+                    "username": "Username"
+                },
+                "data_description": {
+                    "password": "Password",
+                    "username": "Username"
+                },
+                "description": "Login to your Molekule account with the same information you use to login to the mobile app",
+                "title": "Login"
+            }
         }
-      }
-    },
-    "error": {
-      "invalid_auth": "Invalid auth",
-      "invalid_user": "Invallid user",
-      "unknown": "unknown"
     }
-  }
 }
