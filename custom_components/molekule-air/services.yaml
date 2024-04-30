@@ -1,4 +1,0 @@
-# Describes the format of available services.
-
-refresh_access:
-  description: Register the Cognito access token.
