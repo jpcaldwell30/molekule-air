@@ -1,10 +1,10 @@
 {
-  "domain": "molekule_air_cook",
-  "name": "Molekule Air Cookie",
+  "domain": "molekule-air",
+  "name": "Molekule Air",
   "codeowners": ["@jpcaldwell30"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://www.home-assistant.io/integrations/molekule_air",
+  "documentation": "https://github.com/jpcaldwell30/molekule-air",
   "homekit": {},
   "iot_class": "cloud_polling",
   "requirements": ["pycognito==2021.3.1"],
