@@ -3,7 +3,7 @@
 from enum import Enum, unique
 from typing import Final
 
-DOMAIN = "molekule_air"
+DOMAIN = "molekule-air"
 MOLEKULE_NAME: Final = "Molekule Air"
 ICON = "mdi:format-quote-close"
 SENSOR = "sensor"
