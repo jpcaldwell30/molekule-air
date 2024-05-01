@@ -81,6 +81,11 @@ class MolekuleFanEntity(MolekuleBaseEntity, FanEntity):
         self._attr_speed_count = len(SPEED_LIST)
 
         self._get_state_from_coordinator_data()
+        
+    @property
+    def icon(self):
+        """Return the icon for the fan entity."""
+        return "mdi:air-purifier"
 
     @callback
     def _handle_coordinator_update(self) -> None:
