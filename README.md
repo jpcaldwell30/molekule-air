@@ -2,7 +2,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)
 
-This integration is an attempt to bring Molekule air purifier compatibility to Home Assistant.
+This integration brings Molekule air purifier compatibility to Home Assistant. Please note that this integration is in beta and may not be fully functional.
 
 ## Installation instructions
 
