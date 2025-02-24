@@ -60,7 +60,7 @@ async def async_setup_entry(
 class MolekuleFanEntity(MolekuleBaseEntity, FanEntity):
     """Fan control functions of the Rabbit Air air purifier."""
 
-    _attr_supported_features = FanEntityFeature.PRESET_MODE | FanEntityFeature.SET_SPEED
+    _attr_supported_features = FanEntityFeature.PRESET_MODE | FanEntityFeature.SET_SPEED | FanEntityFeature.TURN_OFF | FanEntityFeature.TURN_ON
 
     def __init__(
         self,
