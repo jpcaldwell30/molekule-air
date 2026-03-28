@@ -7,12 +7,11 @@
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/jpcaldwell30/molekule-air",
-  "version": "0.1.0",
+  "issue_tracker": "https://github.com/jpcaldwell30/molekule-air/issues",
+  "version": "1.1.0",
   "homekit": {},
   "iot_class": "cloud_polling",
-  "requirements": [
-    "pycognito==2021.3.1"
-  ],
+  "requirements": [],
   "ssdp": [],
   "zeroconf": []
 }

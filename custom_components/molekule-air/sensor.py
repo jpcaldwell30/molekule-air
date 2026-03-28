@@ -1,34 +1,48 @@
-import json
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from .const import DOMAIN
-import logging
+"""Sensor platform for Molekule Air."""
+from __future__ import annotations
+
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.core import HomeAssistant, callback
+from typing import Any
+
 from homeassistant.components.sensor import (
     SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import (
-    PERCENTAGE,
-)
-from .entity import MolekuleBaseEntity
-_LOGGER: logging.Logger = logging.getLogger(__package__)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import PERCENTAGE
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-def add_space_before_capital(text):
-    """Add a space before the first capital letter of a word."""
-    new_string = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
-    new_string = new_string.title()
-    return new_string
+from .const import DOMAIN
+from .entity import MolekuleBaseEntity
+
+
+def add_space_before_capital(text: str) -> str:
+    """Convert camelCase keys into a readable title."""
+    return re.sub(r"([a-z])([A-Z])", r"\1 \2", text).title()
+
+
+def format_sensor_value(value: Any) -> str | int | float | None:
+    """Normalize Molekule API values into sensor-friendly state values."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "Online" if value else "Offline"
+    if isinstance(value, (int, float)):
+        return value
+    if isinstance(value, str):
+        return value.capitalize()
+    return str(value)
+
 
 @dataclass(frozen=True, kw_only=True)
 class MolekuleEntityDescription(SensorEntityDescription):
-    """Describes Molekule sensor entity."""
-    value: Callable[[dict], float | int | None]
+    """Describes a Molekule sensor entity."""
+
+    value: Callable[[dict[str, Any]], Any]
 
 
 SENSOR_TYPES: list[MolekuleEntityDescription] = [
@@ -57,79 +71,60 @@ SENSOR_TYPES: list[MolekuleEntityDescription] = [
         key="aqi",
         value=lambda data: data.get("aqi"),
     ),
-    # Add more sensor types here
 ]
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up sensor entities based on a config entry."""
-
+    """Set up Molekule sensors for a config entry."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id]
-    device_entities: list[MolekuleSensor] = []
-    device_data = coordinator.data["content"]
-    #_LOGGER.debug("device Data %s", device_data)
-    for device in device_data:
-        #_LOGGER.debug("device from sensor: %s", json.dumps(device))
+    entities: list[MolekuleSensor] = []
+
+    for device in coordinator.data.get("content", []):
         for description in SENSOR_TYPES:
             if description.key in device:
-                    device_entities.append(
-                        MolekuleSensor(
-                            device,
-                            coordinator,
-                            config_entry,
-                            description
-                        )
-                    )
-    async_add_entities(device_entities)
+                entities.append(
+                    MolekuleSensor(device, coordinator, config_entry, description)
+                )
+
+    async_add_entities(entities)
+
 
 class MolekuleSensor(MolekuleBaseEntity, SensorEntity):
-    """Representation of a Molekule Sensor."""
+    """Representation of a Molekule sensor."""
+
     _attr_has_entity_name = True
 
     def __init__(
         self,
-        device: dict[str, str],
-        coordinator: CoordinatorEntity,
+        device: dict[str, Any],
+        coordinator,
         entry: ConfigEntry,
         description: MolekuleEntityDescription,
     ) -> None:
-        """Initialize a single sensor."""
         super().__init__(device, coordinator, entry)
-        #_LOGGER.debug("adding sensor for device: %s with serial number: %s and description key: %s", device.get("name", "Molekule Device") , device_data.get("serialNumber"), description.key)
-        self.entity_description: MolekuleEntityDescription = description
-        self._attr_native_value = None
-        self._attr_name = None
-        device_id = f"{self.serial_nr}_{self.entity_description.key}"
-        self._attr_unique_id = device_id #sensor unique id (not sensor device id)
-        if self.entity_description.key == "aqi":
-            sensor_name = "AQI"
-        else:
-            sensor_name = add_space_before_capital(self.entity_description.key)
-        self._attr_name = sensor_name #sensor name?
-        if description.key in device: #change this to make sure the device id matches for the sensor?
-            value = description.value(device)
-            if isinstance(value, (float, int)):
-                self._attr_native_value = value #sensor value
-            else:
-                self._attr_native_value = value.capitalize()
-        else:
-            _LOGGER.debug("coordinator.data['content'] not found")
+        self.entity_description = description
+        self._attr_unique_id = f"{self.serial_nr}_{description.key}"
+        self._attr_name = (
+            "AQI"
+            if description.key == "aqi"
+            else add_space_before_capital(description.key)
+        )
+        self._update_from_device(device)
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        if "content" in self.coordinator.data:
-            for device_data in self.coordinator.data["content"]:
-                # _LOGGER.debug("data[serialNumber] %s", device_data["serialNumber"])
-                # _LOGGER.debug("self.serial_nr %s", self.serial_nr)
-                if device_data["serialNumber"] == self.serial_nr:
-                    value = self.entity_description.value(device_data)
-                    if isinstance(value, (float, int)):
-                        self._attr_native_value = value #sensor value
-                    else:
-                        self._attr_native_value = value.capitalize()
-                    self.async_write_ha_state()
-                    break
+        device_data = self._get_device_data()
+        if device_data is not None:
+            self._update_from_device(device_data)
+        super()._handle_coordinator_update()
+
+    def _update_from_device(self, device: dict[str, Any]) -> None:
+        """Update the native value from a device payload."""
+        self._attr_native_value = format_sensor_value(
+            self.entity_description.value(device)
+        )

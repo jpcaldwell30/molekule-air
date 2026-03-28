@@ -1,14 +1,19 @@
-from enum import Enum, unique
+"""Shared enums for Molekule device data."""
+from enum import Enum, IntEnum, unique
+
 
 @unique
-class Mode(Enum):
-    """Mode of operation."""
-    auto = 0
-    manual = 1
+class Mode(str, Enum):
+    """Supported Molekule operating modes."""
+
+    smart = "smart"
+    manual = "manual"
+
 
 @unique
-class Speed(Enum):
-    """Fan speed."""
+class Speed(IntEnum):
+    """Fan speed values returned by Molekule."""
+
     Silent = 1
     Low = 2
     Medium = 3
@@ -16,8 +21,10 @@ class Speed(Enum):
     Turbo = 5
     SuperTurbo = 6
 
+
 @unique
-class Model(Enum):
-    """Device model."""
-    Molekule_Pro = "Molekule Pro" # 1
-    Molekule_Mini_Plus = "Molekule Mini+" # 2
+class Model(str, Enum):
+    """Known Molekule device models."""
+
+    Molekule_Pro = "Molekule Pro"
+    Molekule_Mini_Plus = "Molekule Mini+"
