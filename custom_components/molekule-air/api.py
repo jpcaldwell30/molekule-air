@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import json
 import logging
 import socket
+import time
 from typing import Any
 
 import aiohttp
@@ -28,6 +31,9 @@ _USER_AGENT = (
     "Alamofire/4.9.1"
 )
 
+# Refresh the access token when it expires within this many seconds.
+_TOKEN_REFRESH_BUFFER = 300  # 5 minutes
+
 
 class MolekuleApiError(Exception):
     """Base exception for Molekule API errors."""
@@ -37,34 +43,27 @@ class MolekuleAuthenticationError(MolekuleApiError):
     """Raised when authentication with Molekule fails."""
 
 
-def login(username: str, password: str) -> Cognito:
-    """Create a new authenticated Cognito session."""
-    response = Cognito(
+def _parse_token_expiry(access_token: str) -> float:
+    """Return the ``exp`` claim from a JWT access token, or 0 on failure."""
+    try:
+        payload_b64 = access_token.split(".")[1]
+        # JWT uses base64url without padding — add it back.
+        payload_b64 += "=" * (4 - len(payload_b64) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+        return float(payload.get("exp", 0))
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def _login(username: str, password: str) -> Cognito:
+    """Create a new authenticated Cognito session (blocking)."""
+    cog = Cognito(
         COGNITO_USER_POOL_ID,
         COGNITO_APP_CLIENT_ID,
         username=username,
     )
-    response.authenticate(password=password)
-    return response
-
-
-async def async_login(
-    hass: HomeAssistant,
-    username: str,
-    password: str,
-) -> Cognito:
-    """Run the Cognito login flow in the executor."""
-    return await hass.async_add_executor_job(login, username, password)
-
-
-async def async_refresh_auth(hass: HomeAssistant, response: Cognito) -> Cognito:
-    """Refresh the current Cognito token set if needed."""
-
-    def _refresh() -> Cognito:
-        response.check_token()
-        return response
-
-    return await hass.async_add_executor_job(_refresh)
+    cog.authenticate(password=password)
+    return cog
 
 
 class MolekuleApiClient:
@@ -81,11 +80,17 @@ class MolekuleApiClient:
         self._username = username
         self._password = password
         self._session = session
-        self.auth_response: Cognito | None = None
+        self._auth: Cognito | None = None
+        self._token_expires_at: float = 0
+        self._auth_lock = asyncio.Lock()
+
+    # ------------------------------------------------------------------
+    # Public helpers
+    # ------------------------------------------------------------------
 
     async def async_get_data(self) -> dict[str, Any]:
         """Fetch all devices for the configured Molekule account."""
-        return await self.api_wrapper("get", "devices")
+        return await self._api_request("get", "devices")
 
     async def async_set_data(
         self,
@@ -100,7 +105,7 @@ class MolekuleApiClient:
         _LOGGER.debug("Applying state change for %s: %s", device_serial, data)
 
         if power == "off":
-            await self.api_wrapper(
+            await self._api_request(
                 "post",
                 f"devices/{device_serial}/actions/set-power-status",
                 {"status": "off"},
@@ -108,20 +113,20 @@ class MolekuleApiClient:
             return
 
         if power == "on":
-            await self.api_wrapper(
+            await self._api_request(
                 "post",
                 f"devices/{device_serial}/actions/set-power-status",
                 {"status": "on"},
             )
 
         if mode in {MODE_SMART, MODE_MANUAL}:
-            await self.api_wrapper(
+            await self._api_request(
                 "post",
                 f"devices/{device_serial}/actions/{mode}",
             )
 
         if speed is not None:
-            await self.api_wrapper(
+            await self._api_request(
                 "post",
                 f"devices/{device_serial}/actions/set-fan-speed",
                 {"fanSpeed": int(speed)},
@@ -130,24 +135,83 @@ class MolekuleApiClient:
     async def async_verify_auth(self) -> bool:
         """Return whether the configured credentials are valid."""
         try:
-            auth_response = await self._async_get_auth_response(force_login=True)
-            await self._hass.async_add_executor_job(auth_response.verify_tokens)
-        except MolekuleAuthenticationError:
+            auth = await self._async_ensure_auth(force_login=True)
+            await self._hass.async_add_executor_job(auth.verify_tokens)
+        except (MolekuleAuthenticationError, Exception):  # noqa: BLE001
             return False
         return True
 
-    async def api_wrapper(
+    # ------------------------------------------------------------------
+    # Auth management
+    # ------------------------------------------------------------------
+
+    async def _async_ensure_auth(
+        self, *, force_login: bool = False
+    ) -> Cognito:
+        """Return a valid Cognito session, refreshing only when needed."""
+        async with self._auth_lock:
+            if force_login or self._auth is None:
+                return await self._do_login()
+
+            # Only refresh if the token is close to expiring.
+            if time.time() >= self._token_expires_at - _TOKEN_REFRESH_BUFFER:
+                _LOGGER.debug("Access token near expiry, refreshing")
+                try:
+                    await self._hass.async_add_executor_job(
+                        self._auth.check_token
+                    )
+                    self._token_expires_at = _parse_token_expiry(
+                        self._auth.access_token
+                    )
+                except Exception:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "Token refresh failed, performing full login"
+                    )
+                    return await self._do_login()
+
+            return self._auth
+
+    async def _do_login(self) -> Cognito:
+        """Perform a fresh Cognito login and cache the result."""
+        try:
+            auth = await self._hass.async_add_executor_job(
+                _login, self._username, self._password
+            )
+        except Exception as err:  # noqa: BLE001
+            raise MolekuleAuthenticationError(
+                "Unable to authenticate with Molekule"
+            ) from err
+
+        self._auth = auth
+        self._token_expires_at = _parse_token_expiry(auth.access_token)
+        _LOGGER.debug(
+            "Logged in to Molekule, token expires at %s",
+            self._token_expires_at,
+        )
+        return auth
+
+    # ------------------------------------------------------------------
+    # HTTP
+    # ------------------------------------------------------------------
+
+    async def _api_request(
         self,
         method: str,
         path: str,
         json_body: dict[str, Any] | None = None,
         *,
-        retry_on_auth: bool = True,
+        _retried: bool = False,
     ) -> dict[str, Any]:
-        """Execute a Molekule API request."""
-        auth_response = await self._async_get_auth_response()
+        """Execute a Molekule API request with automatic auth retry."""
+        auth = await self._async_ensure_auth()
         url = f"{MOLEKULE_API_BASE_URL}/{path.lstrip('/')}"
-        headers = self._build_headers(auth_response.access_token)
+        headers = {
+            "accept": "application/json",
+            "authorization": auth.access_token,
+            "content-type": "application/json",
+            "user-agent": _USER_AGENT,
+            "x-api-version": "1.0",
+        }
 
         try:
             async with async_timeout.timeout(TIMEOUT):
@@ -157,22 +221,21 @@ class MolekuleApiClient:
                     headers=headers,
                     json=json_body,
                 ) as response:
-                    if response.status in {401, 403} and retry_on_auth:
+                    if response.status in {401, 403} and not _retried:
                         _LOGGER.debug(
-                            "Molekule API rejected cached auth for %s, retrying login",
+                            "API returned %s for %s, re-authenticating",
+                            response.status,
                             path,
                         )
-                        self.auth_response = None
-                        await self._async_get_auth_response(force_login=True)
-                        return await self.api_wrapper(
-                            method,
-                            path,
-                            json_body,
-                            retry_on_auth=False,
+                        async with self._auth_lock:
+                            await self._do_login()
+                        return await self._api_request(
+                            method, path, json_body, _retried=True
                         )
 
                     response.raise_for_status()
                     return await self._parse_response(response, url)
+
         except asyncio.TimeoutError as err:
             raise MolekuleApiError(f"Timeout talking to {url}") from err
         except aiohttp.ClientResponseError as err:
@@ -185,32 +248,6 @@ class MolekuleApiClient:
             ) from err
         except (aiohttp.ClientError, socket.gaierror) as err:
             raise MolekuleApiError(f"Error talking to {url}") from err
-
-    async def _async_get_auth_response(self, *, force_login: bool = False) -> Cognito:
-        """Return a valid Cognito session, refreshing or re-authenticating as needed."""
-        if force_login or self.auth_response is None:
-            self.auth_response = await self._async_login()
-            return self.auth_response
-
-        try:
-            self.auth_response = await async_refresh_auth(self._hass, self.auth_response)
-        except Exception as err:  # pylint: disable=broad-except
-            _LOGGER.debug(
-                "Refreshing Molekule auth failed, falling back to login: %s",
-                err,
-            )
-            self.auth_response = await self._async_login()
-
-        return self.auth_response
-
-    async def _async_login(self) -> Cognito:
-        """Perform a fresh Cognito login."""
-        try:
-            return await async_login(self._hass, self._username, self._password)
-        except Exception as err:  # pylint: disable=broad-except
-            raise MolekuleAuthenticationError(
-                "Unable to authenticate with Molekule"
-            ) from err
 
     async def _parse_response(
         self,
@@ -232,13 +269,3 @@ class MolekuleApiClient:
             return await response.json()
         except (aiohttp.ContentTypeError, ValueError) as err:
             raise MolekuleApiError(f"Invalid JSON response from {url}") from err
-
-    def _build_headers(self, access_token: str) -> dict[str, str]:
-        """Build a request header set for Molekule API calls."""
-        return {
-            "accept": "application/json",
-            "authorization": access_token,
-            "content-type": "application/json",
-            "user-agent": _USER_AGENT,
-            "x-api-version": "1.0",
-        }

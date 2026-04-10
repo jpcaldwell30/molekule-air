@@ -22,7 +22,7 @@ from .const import CONF_PASSWORD, CONF_USERNAME, DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 SUPPORTED_PLATFORMS: tuple[Platform, ...] = (Platform.SENSOR, Platform.FAN)
-DEFAULT_SCAN_INTERVAL = timedelta(seconds=60)
+DEFAULT_SCAN_INTERVAL = timedelta(seconds=120)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

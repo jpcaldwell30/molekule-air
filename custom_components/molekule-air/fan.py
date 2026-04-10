@@ -90,10 +90,12 @@ class MolekuleFanEntity(MolekuleBaseEntity, FanEntity):
         fan_speed = _parse_speed(device_data.get("fanspeed"))
 
         if mode in (None, "off"):
+            self._attr_is_on = False
             self._attr_percentage = 0
             self._attr_preset_mode = None
             return
 
+        self._attr_is_on = True
         self._attr_percentage = (
             ordered_list_item_to_percentage(SPEED_LIST, fan_speed)
             if fan_speed is not None

@@ -5,13 +5,9 @@
     "@jpcaldwell30"
   ],
   "config_flow": true,
-  "dependencies": [],
   "documentation": "https://github.com/jpcaldwell30/molekule-air",
   "issue_tracker": "https://github.com/jpcaldwell30/molekule-air/issues",
-  "version": "1.1.0",
-  "homekit": {},
+  "version": "1.2.0",
   "iot_class": "cloud_polling",
-  "requirements": [],
-  "ssdp": [],
-  "zeroconf": []
+  "requirements": ["pycognito>=2024.5.1"]
 }
